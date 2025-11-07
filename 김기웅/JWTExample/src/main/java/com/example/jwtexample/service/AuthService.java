@@ -14,6 +14,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 
@@ -26,6 +27,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
 
+    @Transactional
     public void signUp(SignUpRequest request) {
         if (userAccountRepository.existsByUsername(request.getUsername())) {
             throw new IllegalStateException("username already exists");
@@ -38,40 +40,41 @@ public class AuthService {
         userAccountRepository.save(account);
     }
 
+    @Transactional
     public TokenResponse login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
-        return issueTokens(request.getUsername());
+        UserAccount user = userAccountRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("invalid username or password"));
+        return issueTokens(user);
     }
 
+    @Transactional
     public TokenResponse refresh(String refreshToken) {
         RefreshToken stored = refreshTokenRepository.findByToken(refreshToken)
                 .orElseThrow(() -> new IllegalArgumentException("invalid refresh token"));
         if (stored.isExpired() || stored.isRevoked()) {
             throw new IllegalArgumentException("expired or revoked refresh token");
         }
-        String username = stored.getUser().getUsername();
-        refreshTokenRepository.deleteByUser(stored.getUser());
-        return issueTokens(username);
+        UserAccount user = stored.getUser();
+        refreshTokenRepository.deleteByUser(user);
+        return issueTokens(user);
     }
 
+    @Transactional
     public void logout(String refreshToken) {
-        refreshTokenRepository.findByToken(refreshToken).ifPresent(rt -> {
-            rt.setRevoked(true);
-            refreshTokenRepository.save(rt);
-        });
+        refreshTokenRepository.findByToken(refreshToken).ifPresent(RefreshToken::revoke);
     }
 
-    private TokenResponse issueTokens(String username) {
-        String access = jwtTokenProvider.generateAccessToken(username);
-        String refresh = jwtTokenProvider.generateRefreshToken(username);
+    private TokenResponse issueTokens(UserAccount user) {
+        String access = jwtTokenProvider.generateAccessToken(user.getUsername());
+        String refresh = jwtTokenProvider.generateRefreshToken(user.getUsername());
 
-        UserAccount user = userAccountRepository.findByUsername(username).orElseThrow();
         RefreshToken entity = RefreshToken.builder()
                 .token(refresh)
                 .user(user)
-                .expiresAt(Instant.now().plusSeconds(getRefreshValiditySeconds()))
+                .expiresAt(Instant.now().plusSeconds(jwtTokenProvider.getRefreshValiditySeconds()))
                 .revoked(false)
                 .build();
         refreshTokenRepository.save(entity);
@@ -80,23 +83,7 @@ public class AuthService {
                 .accessToken(access)
                 .refreshToken(refresh)
                 .tokenType("Bearer")
-                .expiresIn(getAccessValiditySeconds())
+                .expiresIn(jwtTokenProvider.getAccessValiditySeconds())
                 .build();
-    }
-
-    private long getAccessValiditySeconds() {
-        return getField("access-token-validity-seconds");
-    }
-
-    private long getRefreshValiditySeconds() {
-        return getField("refresh-token-validity-seconds");
-    }
-
-    private long getField(String key) {
-        return switch (key) {
-            case "access-token-validity-seconds" -> 900L;
-            case "refresh-token-validity-seconds" -> 1209600L;
-            default -> 0L;
-        };
     }
 }

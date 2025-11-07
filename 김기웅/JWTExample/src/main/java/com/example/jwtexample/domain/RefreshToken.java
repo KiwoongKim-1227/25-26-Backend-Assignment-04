@@ -6,7 +6,6 @@ import lombok.*;
 import java.time.Instant;
 
 @Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -35,5 +34,9 @@ public class RefreshToken {
 
     public boolean isExpired() {
         return Instant.now().isAfter(expiresAt);
+    }
+
+    public void revoke() {
+        this.revoked = true;
     }
 }

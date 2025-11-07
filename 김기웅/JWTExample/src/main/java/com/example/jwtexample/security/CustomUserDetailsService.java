@@ -4,6 +4,7 @@ import com.example.jwtexample.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -15,6 +16,6 @@ public class CustomUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) {
         return userAccountRepository.findByUsername(username)
                 .map(CustomUserDetails::new)
-                .orElseThrow();
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
     }
 }
