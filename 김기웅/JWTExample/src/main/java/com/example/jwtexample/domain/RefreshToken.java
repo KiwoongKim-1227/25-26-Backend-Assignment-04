@@ -6,7 +6,6 @@ import lombok.*;
 import java.time.Instant;
 
 @Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -16,6 +15,7 @@ import java.time.Instant;
         @Index(name = "idx_refresh_token_user", columnList = "user_id")
 })
 public class RefreshToken {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -35,5 +35,9 @@ public class RefreshToken {
 
     public boolean isExpired() {
         return Instant.now().isAfter(expiresAt);
+    }
+
+    public void revoke() {
+        this.revoked = true;
     }
 }

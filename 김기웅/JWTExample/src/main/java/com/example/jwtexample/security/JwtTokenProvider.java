@@ -1,10 +1,7 @@
 package com.example.jwtexample.security;
 
 import com.example.jwtexample.config.JwtProperties;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -13,23 +10,20 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 
 @Component
 public class JwtTokenProvider {
+
     private final SecretKey secretKey;
     private final long accessValiditySeconds;
     private final long refreshValiditySeconds;
     private final CustomUserDetailsService userDetailsService;
 
     public JwtTokenProvider(JwtProperties props, CustomUserDetailsService userDetailsService) {
-        byte[] keyBytes;
-        try {
-            keyBytes = Decoders.BASE64.decode(props.getSecret());
-        } catch (IllegalArgumentException e) {
-            keyBytes = props.getSecret().getBytes();
-        }
+        byte[] keyBytes = decodeSecret(props.getSecret());
         this.secretKey = Keys.hmacShaKeyFor(keyBytes);
         this.accessValiditySeconds = props.getAccessTokenValiditySeconds();
         this.refreshValiditySeconds = props.getRefreshTokenValiditySeconds();
@@ -37,25 +31,11 @@ public class JwtTokenProvider {
     }
 
     public String generateAccessToken(String username) {
-        Instant now = Instant.now();
-        Instant exp = now.plusSeconds(accessValiditySeconds);
-        return Jwts.builder()
-                .setSubject(username)
-                .setIssuedAt(Date.from(now))
-                .setExpiration(Date.from(exp))
-                .signWith(secretKey, SignatureAlgorithm.HS256)
-                .compact();
+        return createToken(username, accessValiditySeconds);
     }
 
     public String generateRefreshToken(String username) {
-        Instant now = Instant.now();
-        Instant exp = now.plusSeconds(refreshValiditySeconds);
-        return Jwts.builder()
-                .setSubject(username)
-                .setIssuedAt(Date.from(now))
-                .setExpiration(Date.from(exp))
-                .signWith(secretKey, SignatureAlgorithm.HS256)
-                .compact();
+        return createToken(username, refreshValiditySeconds);
     }
 
     public Authentication getAuthentication(String token) {
@@ -68,7 +48,7 @@ public class JwtTokenProvider {
         try {
             parse(token);
             return true;
-        } catch (Exception e) {
+        } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
     }
@@ -81,7 +61,26 @@ public class JwtTokenProvider {
         return refreshValiditySeconds;
     }
 
+    private String createToken(String username, long validitySeconds) {
+        Instant now = Instant.now();
+        Instant exp = now.plusSeconds(validitySeconds);
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(Date.from(now))
+                .setExpiration(Date.from(exp))
+                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
     private Jws<Claims> parse(String token) {
         return Jwts.parserBuilder().setSigningKey(secretKey).build().parseClaimsJws(token);
+    }
+
+    private byte[] decodeSecret(String secret) {
+        try {
+            return Decoders.BASE64.decode(secret);
+        } catch (IllegalArgumentException ignored) {
+            return secret.getBytes(StandardCharsets.UTF_8);
+        }
     }
 }
