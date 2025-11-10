@@ -14,8 +14,8 @@ spring:
         use_sql_comments: true
   jwt:
     secret: ${JWT_SECRET}
-    access-token-validity-seconds: 900
-    refresh-token-validity-seconds: 1209600
+    access-token-validity-seconds: ${JWT_ACCESS_TOKEN_VALIDITY_SECONDS}
+    refresh-token-validity-seconds: ${JWT_REFRESH_TOKEN_VALIDITY_SECONDS}
 
 logging:
   level:

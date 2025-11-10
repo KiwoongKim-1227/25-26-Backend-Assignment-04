@@ -21,7 +21,6 @@ import java.time.Instant;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-
     private final UserAccountRepository userAccountRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
@@ -31,7 +30,7 @@ public class AuthService {
     @Transactional
     public void signUp(SignUpRequest request) {
         if (userAccountRepository.existsByUsername(request.getUsername())) {
-            throw new IllegalStateException("username already exists");
+            throw new IllegalArgumentException("username already exists");
         }
         UserAccount account = UserAccount.builder()
                 .username(request.getUsername())
@@ -65,10 +64,7 @@ public class AuthService {
 
     @Transactional
     public void logout(String refreshToken) {
-        refreshTokenRepository.findByToken(refreshToken).ifPresent(rt -> {
-            rt.revoke();
-            refreshTokenRepository.save(rt);
-        });
+        refreshTokenRepository.findByToken(refreshToken).ifPresent(RefreshToken::revoke);
     }
 
     private TokenResponse issueTokens(UserAccount user) {
